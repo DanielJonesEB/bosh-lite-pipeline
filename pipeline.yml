@@ -7,9 +7,11 @@ resource_types:
 resources:
 - name: bosh-lite-pipeline
   type: git
+  webhook_token: foo
+  check_every: 24h
   source:
     uri: https://github.com/DanielJonesEB/bosh-lite-pipeline.git
-    webhook_token: foo
+
 - name: iaas
   type: terraform
   source:
