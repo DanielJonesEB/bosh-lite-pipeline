@@ -149,6 +149,7 @@ resource "aws_iam_user_policy_attachment" "bosh-pool" {
 }
 
 resource "aws_key_pair" "bosh-pool" {
+  key_name   = "bosh-pool"
   public_key = "${file(format("%s/id_rsa.pub", var.key_dir))}"
 }
 
