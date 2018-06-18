@@ -5,6 +5,11 @@ provider "aws" {
   region = "${var.region}"
 }
 
+resource "aws_s3_bucket" "ci" {
+  bucket = "bosh-lite-pipeline"
+  acl    = "private"
+}
+
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 
