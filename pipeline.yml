@@ -3,7 +3,6 @@ resource_types:
   type: docker-image
   source:
     repository: ljfranklin/terraform-resource
-
 resources:
 - name: bosh-lite-pipeline
   type: git
@@ -11,7 +10,6 @@ resources:
   check_every: 24h
   source:
     uri: https://github.com/DanielJonesEB/bosh-lite-pipeline.git
-
 - name: iaas
   type: terraform
   source:
@@ -20,10 +18,130 @@ resources:
       bucket_path: terraform-ci/
       access_key_id: ((concourse_ci_s3_access_key))
       secret_access_key: ((concourse_ci_s3_secret_key))
+    vars:
+      key_dir: private-key
+      region: us-east-1
+    env:
+      AWS_ACCESS_KEY_ID: ((concourse_ci_s3_access_key))
+      AWS_SECRET_ACCESS_KEY: ((concourse_ci_s3_secret_key))
+- name: bosh-deployment
+  type: git
+  check_every: 24h
+  source:
+    uri: https://github.com/cloudfoundry/bosh-deployment.git
+- name: unpaved
+  type: pool
+  source:
+    uri: git@github.com:DanielJonesEB/bosh-lite-pools.git
+    branch: master
+    pool: unpaved
+    private_key: ((github_private_key))
+- name: paved
+  type: pool
+  source:
+    uri: git@github.com:DanielJonesEB/bosh-lite-pools.git
+    branch: master
+    pool: paved
+    private_key: ((github_private_key))
 
 jobs:
-- name: pave
+- name: prepare-vpc
   plan:
   - get: bosh-lite-pipeline
     trigger: true
+  - task: generate-private-key
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: engineerbetter/pcf-ops
+      outputs:
+      - name: private-key
+      run:
+        path: /bin/sh
+        args:
+        - -xc
+        - |
+          ssh-keygen -N '' -f "private-key/id_rsa"
   - put: iaas
+    params:
+      terraform_source: bosh-lite-pipeline/terraform/vpc
+      env_name: test-pool
+
+- name: deploy-bosh-lite
+  plan:
+  - get: unpaved
+    trigger: true
+  - get: iaas
+    passed: [prepare-vpc]
+    trigger: true
+  - put: unpaved
+    params:
+      acquire: true
+  - get: bosh-deployment
+  - task: bosh-create-env
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: engineerbetter/pcf-ops
+      inputs:
+      - name: iaas
+      - name: bosh-deployment
+      - name: unpaved
+      outputs:
+      - name: deployment-state
+      run:
+        path: /bin/sh
+        args:
+        - -euxc
+        - |
+          eval "$(yml2env iaas/metadata --eval)"
+          BOSH_LITE_NAME="$(cat unpaved/name)"
+
+          bosh create-env bosh-deployment/bosh.yml \
+          --state="state.json" \
+          --vars-store="vars.yml" \
+          -o bosh-deployment/aws/cpi.yml \
+          -o bosh-deployment/bosh-lite.yml \
+          -o bosh-deployment/bosh-lite-runc.yml \
+          -o bosh-deployment/external-ip-with-registry-not-recommended.yml \
+          -v director_name=$BOSH_LITE_NAME \
+          -v "internal_cidr=$INTERNAL_CIDR" \
+          -v "internal_gw=$INTERNAL_GW" \
+          -v "internal_ip=$INTERNAL_IP" \
+          -v "access_key_id=$BOSH_ACCESS_KEY_ID" \
+          -v "secret_access_key=$BOSH_SECRET_ACCESSS_KEY" \
+          -v "region=$REGION" \
+          -v "az=$AZ" \
+          -v "default_key_name=$DEFAULT_KEY_NAME" \
+          -v "default_security_groups=$DEFAULT_SECURITY_GROUPS" \
+          --var-file "private_key=$PRIVATE_KEY_FILE" \
+          -v "subnet_id=$SUBNET_ID" \
+          -v "external_ip=$EXTERNAL_IP"
+
+          mv state.json deployment-state/
+          mv vars.yml deployment-state/
+
+  - put: paved
+    params:
+      add: unpaved
+  - put: unpaved
+    params:
+      remove: unpaved
+
+- name: reset-one-paved
+  plan:
+  - get: paved
+  - put: paved
+    params:
+      acquire: true
+  - put: unpaved
+    params:
+      add: paved
+  - put: paved
+    params:
+      remove: paved
+
