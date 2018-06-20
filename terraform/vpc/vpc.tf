@@ -161,7 +161,7 @@ output "internal_gw" {
   value = "${cidrhost(aws_subnet.main.cidr_block, 1)}"
 }
 
-output "access_key_ids" {
+output "access_key_id" {
   value = "${aws_iam_access_key.bosh-pool.id}"
 }
 
@@ -182,7 +182,7 @@ output "default_key_name" {
 }
 
 output "default_security_groups" {
-  value = "${format("[%s]", aws_security_group.bosh.name)}"
+  value = "${format("%s", aws_security_group.bosh.name)}"
 }
 
 output "subnet_id" {
