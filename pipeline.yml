@@ -14,13 +14,15 @@ resources:
   type: terraform
   source:
     storage:
-      bucket: bosh-lite-pipeline
       bucket_path: terraform/ci/
-      access_key_id: ((concourse_ci_s3_access_key))
-      secret_access_key: ((concourse_ci_s3_secret_key))
-    vars:
-      key_dir: private-key
-      region: us-east-1
+      << : &tf-storage
+        bucket: bosh-lite-pipeline
+        access_key_id: ((concourse_ci_s3_access_key))
+        secret_access_key: ((concourse_ci_s3_secret_key))
+    << : &tf-vars
+      vars:
+        key_dir: private-key
+        region: us-east-1
     << : &tf-env
       env:
         AWS_ACCESS_KEY_ID: ((concourse_ci_s3_access_key))
@@ -29,13 +31,9 @@ resources:
   type: terraform
   source:
     storage:
-      bucket: bosh-lite-pipeline
       bucket_path: terraform/global
-      access_key_id: ((concourse_ci_s3_access_key))
-      secret_access_key: ((concourse_ci_s3_secret_key))
-    vars:
-      key_dir: private-key
-      region: us-east-1
+      <<: *tf-storage
+    << : *tf-vars
     << : *tf-env
 - name: bosh-deployment
   type: git
