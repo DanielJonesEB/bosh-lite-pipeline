@@ -5,9 +5,21 @@ provider "aws" {
   region = "${var.region}"
 }
 
-resource "aws_s3_bucket" "ci" {
-  bucket = "bosh-lite-pipeline"
-  acl    = "private"
+resource "aws_iam_policy" "bosh-pool" {
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "ec2:*"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }
+  ]
+}
+EOF
 }
 
 resource "aws_iam_user" "bosh-pool" {

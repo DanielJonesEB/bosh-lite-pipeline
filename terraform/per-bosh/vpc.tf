@@ -113,23 +113,6 @@ resource "aws_security_group" "bosh" {
   }
 }
 
-resource "aws_iam_policy" "bosh-pool" {
-  policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Action": [
-        "ec2:*"
-      ],
-      "Effect": "Allow",
-      "Resource": "*"
-    }
-  ]
-}
-EOF
-}
-
 output "internal_cidr" {
   value = "${aws_subnet.main.cidr_block}"
 }
