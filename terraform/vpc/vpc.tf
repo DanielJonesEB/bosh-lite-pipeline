@@ -1,20 +1,15 @@
-variable "key_dir" {}
+variable "bosh_name" {}
 variable "region" {}
 
 provider "aws" {
   region = "${var.region}"
 }
 
-resource "aws_s3_bucket" "ci" {
-  bucket = "bosh-lite-pipeline"
-  acl    = "private"
-}
-
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 
   tags {
-    Name = "bosh-pool"
+    Name = "bosh-pool-${bosh_name}"
   }
 }
 
@@ -42,7 +37,7 @@ resource "aws_route_table_association" "main" {
 }
 
 resource "aws_security_group" "bosh" {
-  name        = "bosh"
+  name        = "bosh-${var.bosh_name}"
   description = "access to BOSH Lite v2"
   vpc_id      = "${aws_vpc.main.id}"
 
@@ -135,24 +130,6 @@ resource "aws_iam_policy" "bosh-pool" {
 EOF
 }
 
-resource "aws_iam_user" "bosh-pool" {
-  name = "bosh-pool"
-}
-
-resource "aws_iam_access_key" "bosh-pool" {
-  user = "${aws_iam_user.bosh-pool.id}"
-}
-
-resource "aws_iam_user_policy_attachment" "bosh-pool" {
-  user       = "${aws_iam_user.bosh-pool.id}"
-  policy_arn = "${aws_iam_policy.bosh-pool.arn}"
-}
-
-resource "aws_key_pair" "bosh-pool" {
-  key_name   = "bosh-pool"
-  public_key = "${file(format("%s/id_rsa.pub", var.key_dir))}"
-}
-
 output "internal_cidr" {
   value = "${aws_subnet.main.cidr_block}"
 }
@@ -161,24 +138,12 @@ output "internal_gw" {
   value = "${cidrhost(aws_subnet.main.cidr_block, 1)}"
 }
 
-output "access_key_id" {
-  value = "${aws_iam_access_key.bosh-pool.id}"
-}
-
-output "secret_access_key" {
-  value = "${aws_iam_access_key.bosh-pool.secret}"
-}
-
 output "region" {
   value = "${var.region}"
 }
 
 output "az" {
   value = "${aws_subnet.main.availability_zone}"
-}
-
-output "default_key_name" {
-  value = "${aws_key_pair.bosh-pool.key_name}"
 }
 
 output "default_security_groups" {

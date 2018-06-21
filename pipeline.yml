@@ -10,6 +10,21 @@ resources:
   check_every: 24h
   source:
     uri: https://github.com/DanielJonesEB/bosh-lite-pipeline.git
+- name: ci-bucket
+  type: terraform
+  source:
+    storage:
+      bucket: bosh-lite-pipeline
+      bucket_path: terraform/ci/
+      access_key_id: ((concourse_ci_s3_access_key))
+      secret_access_key: ((concourse_ci_s3_secret_key))
+    vars:
+      key_dir: private-key
+      region: us-east-1
+    << : &tf-env
+      env:
+        AWS_ACCESS_KEY_ID: ((concourse_ci_s3_access_key))
+        AWS_SECRET_ACCESS_KEY: ((concourse_ci_s3_secret_key))
 - name: iaas
   type: terraform
   source:
@@ -21,9 +36,7 @@ resources:
     vars:
       key_dir: private-key
       region: us-east-1
-    env:
-      AWS_ACCESS_KEY_ID: ((concourse_ci_s3_access_key))
-      AWS_SECRET_ACCESS_KEY: ((concourse_ci_s3_secret_key))
+    << : *tf-env
 - name: bosh-deployment
   type: git
   check_every: 24h
@@ -45,10 +58,19 @@ resources:
     private_key: ((github_private_key))
 
 jobs:
+- name: setup-ci-bucket
+  plan:
+  - get: bosh-lite-pipeline
+    trigger: true
+  - put: ci-bucket
+    params:
+      terraform_source: bosh-lite-pipeline/terraform/ci
+      env_name: test-pool
 - name: prepare-vpc
   plan:
   - get: bosh-lite-pipeline
     trigger: true
+    passed: [setup-ci-bucket]
   - task: generate-private-key
     config:
       platform: linux
