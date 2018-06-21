@@ -66,7 +66,7 @@ jobs:
     params:
       terraform_source: bosh-lite-pipeline/terraform/ci
       env_name: test-pool
-- name: prepare-vpc
+- name: prepare-global
   plan:
   - get: bosh-lite-pipeline
     trigger: true
@@ -88,7 +88,7 @@ jobs:
           ssh-keygen -N '' -f "private-key/id_rsa"
   - put: iaas
     params:
-      terraform_source: bosh-lite-pipeline/terraform/vpc
+      terraform_source: bosh-lite-pipeline/terraform/global
       env_name: test-pool
 
 - name: deploy-bosh-lite
@@ -96,7 +96,7 @@ jobs:
   - get: unpaved
     trigger: true
   - get: iaas
-    passed: [prepare-vpc]
+    passed: [prepare-global]
     trigger: true
   - put: unpaved
     params:
