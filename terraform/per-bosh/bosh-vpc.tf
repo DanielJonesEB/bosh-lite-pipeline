@@ -18,6 +18,11 @@ resource "aws_subnet" "main" {
   cidr_block = "${cidrsubnet(aws_vpc.main.cidr_block, 8, 1)}"
 }
 
+resource "aws_eip" "bosh-director" {
+  vpc                       = true
+  associate_with_private_ip = "10.0.0.6"
+}
+
 resource "aws_internet_gateway" "main" {
   vpc_id = "${aws_vpc.main.id}"
 }
@@ -135,4 +140,8 @@ output "default_security_groups" {
 
 output "subnet_id" {
   value = "${aws_subnet.main.id}"
+}
+
+output "external_ip" {
+  value = "${aws_eip.bosh-director.public_ip}"
 }
