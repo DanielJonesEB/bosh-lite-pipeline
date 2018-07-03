@@ -169,6 +169,7 @@ jobs:
         source:
           repository: engineerbetter/pcf-ops
       inputs:
+      - name: iaas
       - name: per-bosh-tf
       - name: bosh-deployment
       - name: paved
@@ -193,9 +194,9 @@ jobs:
           -v director_name=$BOSH_LITE_NAME \
           -v "internal_cidr=$INTERNAL_CIDR" \
           -v "internal_gw=$INTERNAL_GW" \
-          -v "internal_ip=$INTERNAL_IP" \
-          -v "access_key_id=$BOSH_ACCESS_KEY_ID" \
-          -v "secret_access_key=$BOSH_SECRET_ACCESSS_KEY" \
+          -v "internal_ip=10.0.0.6" \
+          -v "access_key_id=$ACCESS_KEY_ID" \
+          -v "secret_access_key=$SECRET_ACCESS_KEY" \
           -v "region=$REGION" \
           -v "az=$AZ" \
           -v "default_key_name=$DEFAULT_KEY_NAME" \
