@@ -116,13 +116,34 @@ jobs:
 - name: terraform-one-bosh
   serial: true
   plan:
+  - get: bosh-lite-pipeline
+    passed: [prepare-global]
   - get: unpaved
     passed: [acquire-unpaved]
     trigger: true
+  - task: get-env-name
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: engineerbetter/pcf-ops
+      inputs:
+      - name: unpaved
+      outputs:
+      - name: env-name-vars
+      run:
+        path: /bin/sh
+        args:
+        - -xc
+        - |
+          echo 'bosh_name:' $(cat unpaved/name) > env-name-vars/vars.yml
   - put: per-bosh-tf
     params:
       terraform_source: bosh-lite-pipeline/terraform/per-bosh
       env_name: test-pool
+      var_files:
+      - env-name-vars/vars.yml
   - put: paved
     params:
       add: unpaved
