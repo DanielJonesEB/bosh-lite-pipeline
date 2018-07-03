@@ -35,6 +35,14 @@ resources:
       <<: *tf-storage
     << : *tf-vars
     << : *tf-env
+- name: per-bosh-tf
+  type: terraform
+  source:
+    storage:
+      bucket_path: terraform/per-bosh
+      <<: *tf-storage
+    << : *tf-vars
+    << : *tf-env
 - name: bosh-deployment
   type: git
   check_every: 24h
@@ -53,6 +61,13 @@ resources:
     uri: git@github.com:DanielJonesEB/bosh-lite-pools.git
     branch: master
     pool: paved
+    private_key: ((github_private_key))
+- name: director-deployed
+  type: pool
+  source:
+    pool: director-deployed
+    uri: git@github.com:DanielJonesEB/bosh-lite-pools.git
+    branch: master
     private_key: ((github_private_key))
 
 jobs:
@@ -88,17 +103,42 @@ jobs:
     params:
       terraform_source: bosh-lite-pipeline/terraform/global
       env_name: test-pool
-
-- name: deploy-bosh-lite
+- name: acquire-unpaved
   plan:
-  - get: unpaved
-    trigger: true
   - get: iaas
     passed: [prepare-global]
+    trigger: true
+  - get: unpaved
     trigger: true
   - put: unpaved
     params:
       acquire: true
+- name: terraform-one-bosh
+  serial: true
+  plan:
+  - get: unpaved
+    passed: [acquire-unpaved]
+    trigger: true
+  - put: per-bosh-tf
+    params:
+      terraform_source: bosh-lite-pipeline/terraform/per-bosh
+      env_name: test-pool
+  - put: paved
+    params:
+      add: unpaved
+  - put: unpaved
+    params:
+      remove: unpaved
+
+- name: deploy-bosh-lite
+  plan:
+  - get: iaas
+    passed: [prepare-global]
+  - get: per-bosh-tf
+    passed: [terraform-one-bosh]
+  - get: paved
+    passed: [terraform-one-bosh]
+    trigger: true
   - get: bosh-deployment
   - task: bosh-create-env
     config:
@@ -108,9 +148,9 @@ jobs:
         source:
           repository: engineerbetter/pcf-ops
       inputs:
-      - name: iaas
+      - name: per-bosh-tf
       - name: bosh-deployment
-      - name: unpaved
+      - name: paved
       outputs:
       - name: deployment-state
       run:
@@ -119,7 +159,8 @@ jobs:
         - -euxc
         - |
           eval "$(yml2env iaas/metadata --eval)"
-          BOSH_LITE_NAME="$(cat unpaved/name)"
+          eval "$(yml2env per-bosh-tf/metadata --eval)"
+          BOSH_LITE_NAME="$(cat paved/name)"
 
           bosh create-env bosh-deployment/bosh.yml \
           --state="state.json" \
@@ -144,13 +185,12 @@ jobs:
 
           mv state.json deployment-state/
           mv vars.yml deployment-state/
-
+  - put: director-deployed
+    params:
+      add: paved
   - put: paved
     params:
-      add: unpaved
-  - put: unpaved
-    params:
-      remove: unpaved
+      remove: paved
 
 - name: reset-one-paved
   plan:
