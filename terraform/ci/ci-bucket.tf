@@ -7,4 +7,8 @@ provider "aws" {
 resource "aws_s3_bucket" "ci" {
   bucket = "bosh-lite-pipeline"
   acl    = "private"
+
+  versioning {
+    enabled = true
+  }
 }
