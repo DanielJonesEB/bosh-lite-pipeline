@@ -157,7 +157,7 @@ jobs:
       - env-name-vars/vars.yml
   - put: paved
     params:
-      add: unpaved
+      add_claimed: unpaved
   - put: unpaved
     params:
       remove: unpaved
