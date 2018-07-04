@@ -15,7 +15,7 @@ resource "aws_vpc" "main" {
 
 resource "aws_subnet" "main" {
   vpc_id     = "${aws_vpc.main.id}"
-  cidr_block = "${cidrsubnet(aws_vpc.main.cidr_block, 8, 1)}"
+  cidr_block = "10.0.0.0/16"
 }
 
 resource "aws_eip" "bosh-director" {
