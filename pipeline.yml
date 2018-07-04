@@ -215,7 +215,7 @@ jobs:
           -v "region=$REGION" \
           -v "az=$AZ" \
           -v "default_key_name=$DEFAULT_KEY_NAME" \
-          -v "default_security_groups=$DEFAULT_SECURITY_GROUPS" \
+          -v "default_security_groups=[$DEFAULT_SECURITY_GROUPS]" \
           --var-file "private_key=$PRIVATE_KEY_FILE" \
           -v "subnet_id=$SUBNET_ID" \
           -v "external_ip=$EXTERNAL_IP"
