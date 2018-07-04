@@ -21,7 +21,6 @@ resources:
         secret_access_key: ((concourse_ci_s3_secret_key))
     << : &tf-vars
       vars:
-        key_dir: private-key
         region: us-east-1
     << : &tf-env
       env:
@@ -35,6 +34,13 @@ resources:
       <<: *tf-storage
     << : *tf-vars
     << : *tf-env
+- name: private-key
+  type: s3
+  source:
+    bucket: bosh-lite-pipeline
+    versioned_file: private-key/id_rsa
+    access_key_id: ((concourse_ci_s3_access_key))
+    secret_access_key: ((concourse_ci_s3_secret_key))
 - name: per-bosh-tf
   type: terraform
   source:
@@ -103,6 +109,11 @@ jobs:
     params:
       terraform_source: bosh-lite-pipeline/terraform/global
       env_name: test-pool
+      vars:
+        key_dir: private-key
+  - put: private-key
+    params:
+      file: private-key/id_rsa
 - name: acquire-unpaved
   plan:
   - get: iaas
@@ -161,6 +172,8 @@ jobs:
     passed: [terraform-one-bosh]
     trigger: true
   - get: bosh-deployment
+  - get: private-key
+    passed: [prepare-global]
   - task: bosh-create-env
     config:
       platform: linux
@@ -173,6 +186,7 @@ jobs:
       - name: per-bosh-tf
       - name: bosh-deployment
       - name: paved
+      - name: private-key
       outputs:
       - name: deployment-state
       run:
@@ -183,6 +197,7 @@ jobs:
           eval "$(yml2env iaas/metadata --eval)"
           eval "$(yml2env per-bosh-tf/metadata --eval)"
           BOSH_LITE_NAME="$(cat paved/name)"
+          PRIVATE_KEY_FILE=private-key/id_rsa
 
           bosh create-env bosh-deployment/bosh.yml \
           --state="state.json" \
