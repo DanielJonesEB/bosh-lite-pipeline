@@ -3,6 +3,11 @@ resource_types:
   type: docker-image
   source:
     repository: ljfranklin/terraform-resource
+- name: bosh-deployment
+  type: docker-image
+  source:
+    repository: cloudfoundry/bosh-deployment-resource
+
 resources:
 - name: bosh-lite-pipeline
   type: git
@@ -200,7 +205,7 @@ jobs:
           PRIVATE_KEY_FILE=private-key/id_rsa
 
           bosh create-env bosh-deployment/bosh.yml \
-          --state="state.json" \
+          --state="bosh-state.json" \
           --vars-store="vars.yml" \
           -o bosh-deployment/aws/cpi.yml \
           -o bosh-deployment/bosh-lite.yml \
@@ -220,14 +225,73 @@ jobs:
           -v "subnet_id=$SUBNET_ID" \
           -v "external_ip=$EXTERNAL_IP"
 
-          mv state.json deployment-state/
-          mv vars.yml deployment-state/
+          # Set contents of lock file
+          tar czf deployment-state/metadata bosh-state.json vars.yml
+          mv paved/name deployment-state/name
   - put: director-deployed
     params:
-      add: paved
+      add: deployment-state
   - put: paved
     params:
       remove: paved
+
+- name: destroy-bosh
+  plan:
+  - get: director-deployed
+  - get: bosh-deployment
+  - get: iaas
+    passed: [prepare-global]
+  - get: per-bosh-tf
+    passed: [terraform-one-bosh]
+  - get: private-key
+    passed: [prepare-global]
+  - task: bosh-delete-env
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: engineerbetter/pcf-ops
+      inputs:
+      - name: director-deployed
+      - name: bosh-deployment
+      - name: iaas
+      - name: per-bosh-tf
+      - name: private-key
+      outputs:
+      - name: deployment-state
+      run:
+        path: /bin/sh
+        args:
+        - -euxc
+        - |
+          eval "$(yml2env iaas/metadata --eval)"
+          eval "$(yml2env per-bosh-tf/metadata --eval)"
+          PRIVATE_KEY_FILE=private-key/id_rsa
+
+          tar -xzf director-deployed/metadata
+          BOSH_LITE_NAME="$(cat director-deployed/name)"
+
+          bosh delete-env bosh-deployment/bosh.yml \
+          --state="bosh-state.json" \
+          --vars-store="vars.yml" \
+          -o bosh-deployment/aws/cpi.yml \
+          -o bosh-deployment/bosh-lite.yml \
+          -o bosh-deployment/bosh-lite-runc.yml \
+          -o bosh-deployment/external-ip-with-registry-not-recommended.yml \
+          -v director_name=$BOSH_LITE_NAME \
+          -v "internal_cidr=10.0.0.0/16" \
+          -v "internal_gw=10.0.0.1" \
+          -v "internal_ip=10.0.0.6" \
+          -v "access_key_id=$ACCESS_KEY_ID" \
+          -v "secret_access_key=$SECRET_ACCESS_KEY" \
+          -v "region=$REGION" \
+          -v "az=$AZ" \
+          -v "default_key_name=$DEFAULT_KEY_NAME" \
+          -v "default_security_groups=[$DEFAULT_SECURITY_GROUPS]" \
+          --var-file "private_key=$PRIVATE_KEY_FILE" \
+          -v "subnet_id=$SUBNET_ID" \
+          -v "external_ip=$EXTERNAL_IP"
 
 - name: reset-one-paved
   plan:
@@ -241,4 +305,3 @@ jobs:
   - put: paved
     params:
       remove: paved
-
