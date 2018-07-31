@@ -80,6 +80,15 @@ resources:
     uri: git@github.com:DanielJonesEB/bosh-lite-pools.git
     branch: master
     private_key: ((github_private_key))
+- name: cf-deployment
+  type: git
+  check_every: 24h
+  source:
+    uri: https://github.com/cloudfoundry/cf-deployment.git
+- name: cf-on-a-bosh
+  type: bosh-deployment
+  source:
+    deployment: cf
 
 jobs:
 - name: setup-ci-bucket
@@ -90,6 +99,7 @@ jobs:
     params:
       terraform_source: bosh-lite-pipeline/terraform/ci
       env_name: test-pool
+
 - name: prepare-global
   plan:
   - get: bosh-lite-pipeline
@@ -119,6 +129,7 @@ jobs:
   - put: private-key
     params:
       file: private-key/id_rsa
+
 - name: acquire-unpaved
   plan:
   - get: iaas
@@ -129,6 +140,7 @@ jobs:
   - put: unpaved
     params:
       acquire: true
+
 - name: terraform-one-bosh
   serial: true
   plan:
@@ -157,12 +169,35 @@ jobs:
   - put: per-bosh-tf
     params:
       terraform_source: bosh-lite-pipeline/terraform/per-bosh
-      env_name: test-pool
+      env_file_name: unpaved/name
       var_files:
       - env-name-vars/vars.yml
+  - get: per-bosh-tf
+    params:
+      output_statefile: true
+  - task: archive-statefile
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: engineerbetter/pcf-ops
+      inputs:
+      - name: unpaved
+      outputs:
+      - name: unpaved-with-state
+      run:
+        path: /bin/sh
+        args:
+        - -xc
+        - |
+          # Set contents of lock files
+          cd per-bosh-tf
+          tar czf ../unpaved-with-state/metadata terraform.tfstate
+          mv unpaved/name unpaved-with-state/name
   - put: paved
     params:
-      add_claimed: unpaved
+      add_claimed: unpaved-with-state
   - put: unpaved
     params:
       remove: unpaved
@@ -292,6 +327,67 @@ jobs:
           --var-file "private_key=$PRIVATE_KEY_FILE" \
           -v "subnet_id=$SUBNET_ID" \
           -v "external_ip=$EXTERNAL_IP"
+
+- name: undo-director-deployed
+  plan:
+  - get: director-deployed
+    passed: [destroy-bosh]
+  - put: paved
+    params:
+      add: director-deployed
+  - put: director-deployed
+    params:
+      remove: director-deployed
+
+- name: destroy-per-bosh-tf
+  plan:
+  - get: bosh-lite-pipeline
+  - get: per-bosh-tf
+    passed: [destroy-bosh]
+  - put: per-bosh-tf
+    params:
+      action: destroy
+      get_params:
+        action: destroy
+      terraform_source: bosh-lite-pipeline/terraform/per-bosh
+      env_name: test-pool
+      vars:
+        bosh_name: env-1
+
+- name: deploy-cf
+  plan:
+  - get: director-deployed
+    trigger: true
+  - put: director-deployed
+    params:
+      acquire: true
+  - get: cf-deployment
+  - task: bosh-create-env
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: engineerbetter/pcf-ops
+      inputs:
+      - name: director-deployed
+      outputs:
+      - name: deployment-state
+      run:
+        path: /bin/sh
+        args:
+        - -euxc
+        - |
+          target
+          client
+          client_secret
+          ca_cert
+
+          exit 1
+  - put: cf-on-a-bosh
+    params:
+      source_file: env/bosh-source.json
+
 
 - name: reset-one-paved
   plan:
