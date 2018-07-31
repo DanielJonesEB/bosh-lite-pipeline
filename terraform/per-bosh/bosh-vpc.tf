@@ -8,7 +8,7 @@ resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 
   tags {
-    Name = "bosh-pool-${var.env}"
+    Name = "bosh-pool-${terraform.env}"
   }
 }
 
@@ -41,7 +41,7 @@ resource "aws_route_table_association" "main" {
 }
 
 resource "aws_security_group" "bosh" {
-  name        = "bosh-${var.bosh_name}"
+  name        = "bosh-${terraform.env}"
   description = "access to BOSH Lite v2"
   vpc_id      = "${aws_vpc.main.id}"
 
